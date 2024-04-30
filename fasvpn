@@ -1,0 +1,25 @@
+#!/bin/sh
+
+FASVPN_CONFIG_DIR="${XDG_CONFIG_DIR:-${HOME}/.config}/fasvpn"
+
+mkdir -p "$FASVPN_CONFIG_DIR"
+
+if ! [[ -f $FASVPN_CONFIG_DIR/vpn.env ]]; then
+	tmpfile=$(mktemp "$FASVPN_CONFIG_DIR/dataXXXXXX")
+	trap 'rm -f $tmpfile' EXIT
+	zenity --forms --add-entry Username --add-password Password --separator  >"$tmpfile"
+	username=$(cut -f1 -d <"$tmpfile")
+	password=$(cut -f2 -d <"$tmpfile")
+	cat >"$FASVPN_CONFIG_DIR/vpn.env" <<EOF
+VPN_USERNAME=$username
+VPN_PASSWORD=$password
+EOF
+fi
+
+pin=$(zenity --password --title "PIN") || exit 1
+if [[ -z $pin ]]; then
+	echo "ERROR: pin cannot be empty" >&2
+	exit 1
+fi
+
+podman run --name fasvpn --replace -d --privileged -p 127.0.0.1:3128:3128 --env-file "$FASVPN_CONFIG_DIR/vpn.env" -e VPN_PIN="$pin" fasvpn
